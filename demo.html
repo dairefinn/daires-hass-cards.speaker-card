@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Speaker Card Demo</title>
+  <style>
+    body {
+      background: #f0f4f8;
+      font-family: sans-serif;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      padding: 32px;
+      justify-content: center;
+    }
+    h1 {
+      width: 100%;
+      text-align: center;
+      color: #333;
+      margin-bottom: 0;
+    }
+    h2 {
+      width: 100%;
+      font-size: 13px;
+      font-weight: 500;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 8px 0 0;
+    }
+    p.sub {
+      width: 100%;
+      text-align: center;
+      color: #666;
+      margin-top: 4px;
+    }
+    daires-hass-cards-speaker-card {
+      width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Speaker Card Demo</h1>
+  <p class="sub">Static previews — no Home Assistant required</p>
+
+  <h2>Examples</h2>
+  <daires-hass-cards-speaker-card id="ex-playing"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="ex-paused"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="ex-idle"></daires-hass-cards-speaker-card>
+
+  <h2>entity states</h2>
+  <daires-hass-cards-speaker-card id="state-playing"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="state-paused"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="state-idle"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="state-off"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="state-muted"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="state-unavailable"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="state-no-duration"></daires-hass-cards-speaker-card>
+
+  <h2>title</h2>
+  <daires-hass-cards-speaker-card id="title-from-hass"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="title-override"></daires-hass-cards-speaker-card>
+
+  <h2>background</h2>
+  <daires-hass-cards-speaker-card id="bg-white"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="bg-dark"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="bg-tinted"></daires-hass-cards-speaker-card>
+
+  <h2>album art</h2>
+  <daires-hass-cards-speaker-card id="art-playing"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="art-paused"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="art-muted"></daires-hass-cards-speaker-card>
+
+  <h2>interactions</h2>
+  <daires-hass-cards-speaker-card id="int-tap-more-info"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="int-tap-navigate"></daires-hass-cards-speaker-card>
+  <daires-hass-cards-speaker-card id="int-multi"></daires-hass-cards-speaker-card>
+
+  <script>
+    if (!customElements.get("ha-card")) {
+      customElements.define("ha-card", class extends HTMLElement {
+        connectedCallback() {
+          this.style.cssText = "display:block;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);overflow:hidden;";
+        }
+      });
+    }
+  </script>
+  <script src="speaker-card.js"></script>
+  <script>
+    const mockHass = {
+      states: {
+        "media_player.kitchen":   { state: "playing",     attributes: { friendly_name: "Kitchen",     media_title: "Blue in Green", media_artist: "Miles Davis", volume_level: 0.60, is_volume_muted: false, media_position: 95,  media_duration: 340, media_position_updated_at: new Date(Date.now() - 4000).toISOString() } },
+        "media_player.bedroom":   { state: "paused",      attributes: { friendly_name: "Bedroom",     media_title: "So What",       media_artist: "Miles Davis", volume_level: 0.40, is_volume_muted: false, media_position: 42,  media_duration: 565, media_position_updated_at: new Date(Date.now() - 1000).toISOString() } },
+        "media_player.living":    { state: "idle",        attributes: { friendly_name: "Living Room",                                                           volume_level: 0.50, is_volume_muted: false } },
+        "media_player.office":    { state: "off",         attributes: { friendly_name: "Office" } },
+        "media_player.bathroom":  { state: "playing",     attributes: { friendly_name: "Bathroom",    media_title: "Kind of Blue",  media_artist: "Miles Davis", volume_level: 0.70, is_volume_muted: true,  media_position: 180, media_duration: 693, media_position_updated_at: new Date(Date.now() - 3000).toISOString() } },
+        "media_player.garage":    { state: "unavailable", attributes: { friendly_name: "Garage" } },
+        "media_player.stream":    { state: "playing",     attributes: { friendly_name: "Radio",      media_title: "Joy Without Sound", media_artist: "TOKiMONSTA", volume_level: 0.55, is_volume_muted: false, media_position: 83, media_position_updated_at: new Date(Date.now() - 2000).toISOString() } },
+        "media_player.art_play":  { state: "playing",     attributes: { friendly_name: "Living Room", media_title: "Blue in Green", media_artist: "Miles Davis", volume_level: 0.65, is_volume_muted: false, media_position: 95,  media_duration: 340, media_position_updated_at: new Date(Date.now() - 4000).toISOString(), entity_picture: "https://picsum.photos/seed/jazz1/400/400" } },
+        "media_player.art_pause": { state: "paused",      attributes: { friendly_name: "Bedroom",     media_title: "So What",       media_artist: "Miles Davis", volume_level: 0.45, is_volume_muted: false, media_position: 42,  media_duration: 565, media_position_updated_at: new Date(Date.now() - 1000).toISOString(), entity_picture: "https://picsum.photos/seed/jazz2/400/400" } },
+        "media_player.art_muted": { state: "playing",     attributes: { friendly_name: "Kitchen",     media_title: "All Blues",     media_artist: "Miles Davis", volume_level: 0.80, is_volume_muted: true,  media_position: 210, media_duration: 420, media_position_updated_at: new Date(Date.now() - 2000).toISOString(), entity_picture: "https://picsum.photos/seed/jazz3/400/400" } },
+      },
+      callService(domain, service, data) {
+        console.log(`Service called: ${domain}.${service}`, data);
+        if (service === "volume_set" && data.entity_id && data.volume_level != null) {
+          const state = this.states[data.entity_id];
+          if (state) {
+            state.attributes.volume_level = data.volume_level;
+            state.attributes.is_volume_muted = false;
+            document.querySelectorAll("daires-hass-cards-speaker-card").forEach(el => {
+              if (el._config?.entity === data.entity_id) el.hass = mockHass;
+            });
+          }
+        }
+        if (service === "media_seek" && data.entity_id && data.seek_position != null) {
+          const state = this.states[data.entity_id];
+          if (state) {
+            state.attributes.media_position = data.seek_position;
+            state.attributes.media_position_updated_at = new Date().toISOString();
+            document.querySelectorAll("daires-hass-cards-speaker-card").forEach(el => {
+              if (el._config?.entity === data.entity_id) el.hass = mockHass;
+            });
+          }
+        }
+      },
+    };
+
+    function setup(id, config) {
+      const el = document.getElementById(id);
+      el.setConfig(config);
+      el.hass = mockHass;
+    }
+
+    // ── Examples ──────────────────────────────────────────────────────────────
+    setup("ex-playing", { entity: "media_player.kitchen" });
+    setup("ex-paused",  { entity: "media_player.bedroom" });
+    setup("ex-idle",    { entity: "media_player.living" });
+
+    // ── entity states ─────────────────────────────────────────────────────────
+    setup("state-playing",     { entity: "media_player.kitchen" });
+    setup("state-paused",      { entity: "media_player.bedroom" });
+    setup("state-idle",        { entity: "media_player.living" });
+    setup("state-off",         { entity: "media_player.office" });
+    setup("state-muted",       { entity: "media_player.bathroom" });
+    setup("state-unavailable", { entity: "media_player.garage" });
+    setup("state-no-duration", { entity: "media_player.stream" });
+
+    // ── title ─────────────────────────────────────────────────────────────────
+    // Defaults to friendly_name from hass state
+    setup("title-from-hass", { entity: "media_player.kitchen" });
+    // title overrides the displayed name
+    setup("title-override", { entity: "media_player.kitchen", title: "Sonos — Kitchen" });
+
+    // ── background ────────────────────────────────────────────────────────────
+    setup("bg-white",  { entity: "media_player.kitchen", background: "#ffffff" });
+    setup("bg-dark",   { entity: "media_player.kitchen", background: "#1c1c1e" });
+    setup("bg-tinted", { entity: "media_player.kitchen", background: "#e8eaf6" });
+
+    // ── album art ─────────────────────────────────────────────────────────────
+    setup("art-playing", { entity: "media_player.art_play" });
+    setup("art-paused",  { entity: "media_player.art_pause" });
+    setup("art-muted",   { entity: "media_player.art_muted" });
+
+    // ── interactions ──────────────────────────────────────────────────────────
+    // Note: control buttons (play/pause/prev/next) are excluded from card-level tap so they still work
+    setup("int-tap-more-info", { entity: "media_player.kitchen", interactions: [{ action: "more-info" }] });
+    setup("int-tap-navigate",  { entity: "media_player.bedroom", interactions: [{ action: "navigate", path: "/lovelace/media" }] });
+    setup("int-multi",         { entity: "media_player.kitchen", interactions: [{ trigger: "tap", action: "more-info" }, { trigger: "hold", action: "navigate", path: "/lovelace/media" }] });
+
+    document.addEventListener("hass-more-info", (e) => alert(`more-info: ${e.detail.entityId}`));
+    document.addEventListener("location-changed", () => alert(`navigate: ${window.location.pathname}`));
+  </script>
+</body>
+</html>
