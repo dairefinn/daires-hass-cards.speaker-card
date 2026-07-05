@@ -272,13 +272,28 @@ class SpeakerCard extends HTMLElement {
           line-height: 1.2;
           transition: color 0.6s ease;
         }
+        .media-artist-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-top: 2px;
+          gap: 8px;
+        }
         .media-artist {
           font-size: 13px;
           color: ${textSecondary};
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          margin-top: 2px;
+          transition: color 0.6s ease;
+          flex: 1;
+          min-width: 0;
+        }
+        .media-timer {
+          font-size: 12px;
+          color: ${textSecondary};
+          white-space: nowrap;
+          flex-shrink: 0;
           transition: color 0.6s ease;
         }
         .status-text {
@@ -427,12 +442,17 @@ class SpeakerCard extends HTMLElement {
             <div class="flex-spacer"></div>
             <div class="media-info">
               ${s.mediaTitle ? `<div class="media-title">${s.mediaTitle}</div>` : ""}
-              ${s.mediaArtist ? `<div class="media-artist">${s.mediaArtist}</div>` : ""}
+              ${(s.mediaArtist || hasPosition) ? `
+                <div class="media-artist-row">
+                  <span class="media-artist">${s.mediaArtist ?? ""}</span>
+                  ${hasPosition ? `<span class="media-timer">${fmt(currentPosition)}${s.mediaDuration ? " / " + fmt(s.mediaDuration) : ""}</span>` : ""}
+                </div>
+              ` : ""}
               ${statusText ? `<div class="status-text">${statusText}</div>` : ""}
             </div>
             ${!s.isUnavailable ? `
               <div class="controls-row">
-                ${hasPosition ? `
+                ${hasPosition && s.mediaDuration != null ? `
                   <button class="seek-btn" id="seek-btn">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.2,16.2L11,13V7H12.5V12.2L17,14.9L16.2,16.2Z"/>
@@ -473,16 +493,11 @@ class SpeakerCard extends HTMLElement {
               ` : ""}
               ${hasPosition && this._seekOpen ? `
                 <div class="vol-expand">
-                  ${progressPct != null ? `
-                    <div class="vol-track" id="seek-track">
-                      <div class="vol-track-inner">
-                        <div class="vol-fill" style="width:${progressPct}%;"></div>
-                      </div>
+                  <div class="vol-track" id="seek-track">
+                    <div class="vol-track-inner">
+                      <div class="vol-fill" style="width:${progressPct != null ? progressPct : 0}%;"></div>
                     </div>
-                    <span class="vol-pct">${fmt(currentPosition)} / ${fmt(s.mediaDuration)}</span>
-                  ` : `
-                    <span class="vol-pct" style="margin-left:auto;">${fmt(currentPosition)}</span>
-                  `}
+                  </div>
                 </div>
               ` : ""}
               ${volumePct != null && this._volumeOpen ? `
