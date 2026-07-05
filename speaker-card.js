@@ -258,6 +258,13 @@ class SpeakerCard extends HTMLElement {
           color: ${textSecondary};
           transition: color 0.6s ease;
         }
+        .header-status {
+          margin-left: auto;
+          font-size: 13px;
+          font-weight: 400;
+          color: ${textSecondary};
+          transition: color 0.6s ease;
+        }
         .media-info {
           min-width: 0;
           margin-bottom: 8px;
@@ -294,11 +301,6 @@ class SpeakerCard extends HTMLElement {
           color: ${textSecondary};
           white-space: nowrap;
           flex-shrink: 0;
-          transition: color 0.6s ease;
-        }
-        .status-text {
-          font-size: 13px;
-          color: ${textSecondary};
           transition: color 0.6s ease;
         }
         .controls-row {
@@ -438,6 +440,7 @@ class SpeakerCard extends HTMLElement {
                 <path d="M3,9V15H7L12,20V4L7,9H3M16.5,12C16.5,10.23 15.48,8.71 14,7.97V16C15.48,15.29 16.5,13.77 16.5,12Z"/>
               </svg>
               ${s.name}
+              ${statusText ? `<span class="header-status">${statusText}</span>` : ""}
             </div>
             <div class="flex-spacer"></div>
             <div class="media-info">
@@ -448,7 +451,6 @@ class SpeakerCard extends HTMLElement {
                   ${hasPosition ? `<span class="media-timer">${fmt(currentPosition)}${s.mediaDuration ? " / " + fmt(s.mediaDuration) : ""}</span>` : ""}
                 </div>
               ` : ""}
-              ${statusText ? `<div class="status-text">${statusText}</div>` : ""}
             </div>
             ${!s.isUnavailable ? `
               <div class="controls-row">
