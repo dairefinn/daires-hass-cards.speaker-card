@@ -2,7 +2,7 @@
 
 A media player card for Home Assistant. Shows the currently playing track, artist, and volume level with play/pause, previous, and next controls.
 
-<img width="1254" height="1200" alt="image" src="https://github.com/user-attachments/assets/33a8e8aa-ecbd-4066-8bb8-94b4eeed5644" />
+<img width="100%" alt="image" src="https://github.com/user-attachments/assets/dca0584e-58a8-4868-880c-1a85b4c22ad3" />
 
 ## Installation
 
