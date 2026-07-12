@@ -461,8 +461,21 @@ class SpeakerCard extends HTMLElement {
           cursor: ${canSeek ? "pointer" : "default"};
           box-sizing: border-box;
         }
+        .progress-track-wrap {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 12px;
+          overflow: hidden;
+          border-radius: 0 0 12px 12px;
+          pointer-events: none;
+        }
         .progress-track {
-          position: relative;
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
           height: 3px;
           border-radius: 2px;
           background: ${trackBg};
@@ -587,9 +600,11 @@ class SpeakerCard extends HTMLElement {
           </div>
           ${progressPct != null ? `
             <div class="progress-wrap" id="progress-bar">
-              <div class="progress-track">
-                <div class="progress-hover-fill" id="progress-hover-fill"></div>
-                <div class="progress-fill" style="width:${progressPct}%;"></div>
+              <div class="progress-track-wrap">
+                <div class="progress-track">
+                  <div class="progress-hover-fill" id="progress-hover-fill"></div>
+                  <div class="progress-fill" style="width:${progressPct}%;"></div>
+                </div>
               </div>
               ${canSeek ? `
                 <div class="progress-thumb" style="left:${progressPct}%;"></div>
