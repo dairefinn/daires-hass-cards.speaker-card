@@ -2,8 +2,13 @@ class SpeakerCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    this._volumeOpen = false;
-    this._seekOpen = false;
+    this._dragging = false;
+    this._volDragging = false;
+    this._volHovering = false;
+    this._optimisticVolume = null;
+    this._optimisticMuted = null;
+    this._optimisticPosition = null;
+    this._optimisticPositionAt = null;
   }
 
   set hass(hass) {
@@ -40,6 +45,22 @@ class SpeakerCard extends HTMLElement {
     const isOff = state === "off";
     const isUnavailable = state === "unavailable" || state === "unknown";
 
+    const haVol = attrs.volume_level ?? null;
+    const haMuted = attrs.is_volume_muted ?? false;
+    const haPos = attrs.media_position ?? null;
+
+    // Clear optimistic state when HA confirms the value
+    if (this._optimisticVolume != null && haVol != null && Math.abs(haVol - this._optimisticVolume) < 0.02) {
+      this._optimisticVolume = null;
+    }
+    if (this._optimisticMuted != null && haMuted === this._optimisticMuted) {
+      this._optimisticMuted = null;
+    }
+    if (this._optimisticPosition != null && haPos != null && Math.abs(haPos - this._optimisticPosition) < 2) {
+      this._optimisticPosition = null;
+      this._optimisticPositionAt = null;
+    }
+
     return {
       name,
       state,
@@ -50,12 +71,14 @@ class SpeakerCard extends HTMLElement {
       isUnavailable,
       mediaTitle: attrs.media_title ?? null,
       mediaArtist: attrs.media_artist ?? null,
-      volumeLevel: attrs.volume_level ?? null,
-      isMuted: attrs.is_volume_muted ?? false,
+      volumeLevel: this._optimisticVolume ?? haVol,
+      isMuted: this._optimisticMuted ?? haMuted,
       entityPicture: attrs.entity_picture ?? null,
-      mediaPosition: attrs.media_position ?? null,
+      mediaPosition: this._optimisticPosition ?? haPos,
       mediaDuration: attrs.media_duration ?? null,
-      mediaPositionUpdatedAt: attrs.media_position_updated_at ?? null,
+      mediaPositionUpdatedAt: this._optimisticPosition != null
+        ? this._optimisticPositionAt
+        : (attrs.media_position_updated_at ?? null),
     };
   }
 
@@ -160,7 +183,7 @@ class SpeakerCard extends HTMLElement {
   }
 
   _render() {
-    if (!this._config) return;
+    if (!this._config || this._dragging || this._volDragging) return;
 
     const config = this._config;
     const s = this._getState();
@@ -209,6 +232,7 @@ class SpeakerCard extends HTMLElement {
         progressPct = Math.min(100, (currentPosition / s.mediaDuration) * 100);
       }
     }
+    const canSeek = progressPct != null && s.mediaDuration != null;
     const volIconPath = s.isMuted
       ? `<path d="M3,9V15H7L12,20V4L7,9H3M20.17,13.83L18.75,12.42L20.17,11L18.75,9.58L17.33,11L15.92,9.58L14.5,11L15.92,12.42L14.5,13.83L15.92,15.25L17.33,13.83L18.75,15.25L20.17,13.83Z"/>`
       : `<path d="M3,9V15H7L12,20V4L7,9H3M16.5,12C16.5,10.23 15.48,8.71 14,7.97V16C15.48,15.29 16.5,13.77 16.5,12Z"/>`;
@@ -223,7 +247,6 @@ class SpeakerCard extends HTMLElement {
           padding: 16px;
           box-sizing: border-box;
           position: relative;
-          overflow: hidden;
           height: 100%;
           display: flex;
           flex-direction: column;
@@ -231,6 +254,7 @@ class SpeakerCard extends HTMLElement {
         .art-bg {
           position: absolute;
           inset: 0;
+          border-radius: 12px;
           background-size: cover;
           background-position: center;
           background-repeat: no-repeat;
@@ -239,6 +263,7 @@ class SpeakerCard extends HTMLElement {
         .art-overlay {
           position: absolute;
           inset: 0;
+          border-radius: 12px;
           background: linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0.65));
         }
         .card-content {
@@ -256,8 +281,10 @@ class SpeakerCard extends HTMLElement {
           font-size: 14px;
           font-weight: 500;
           color: ${textSecondary};
-          transition: color 0.6s ease;
+          transition: color 0.6s ease, opacity 0.2s;
+          cursor: pointer;
         }
+        .header:hover { opacity: 0.7; }
         .header-status {
           margin-left: auto;
           font-size: 13px;
@@ -354,78 +381,143 @@ class SpeakerCard extends HTMLElement {
           box-sizing: border-box;
         }
         .vol-btn:hover { background: ${showArt ? "rgba(255,255,255,0.15)" : "var(--divider-color, #e0e0e0)"}; }
-        .vol-expand {
+        .vol-container {
+          position: relative;
+          flex-shrink: 0;
+        }
+        .vol-popup {
+          position: absolute;
+          bottom: 100%;
+          right: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 6px;
+          background: ${showArt ? "rgba(0,0,0,0.6)" : "var(--card-background-color, #fff)"};
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.15s ease;
+          z-index: 10;
+        }
+        .vol-pct-label {
+          font-size: 11px;
+          font-weight: 500;
+          color: ${textSecondary};
+          white-space: nowrap;
+          transition: color 0.6s ease;
+        }
+        .vol-vert-track {
+          position: relative;
+          width: 28px;
+          height: 80px;
+          cursor: pointer;
           display: flex;
           align-items: center;
-          gap: 8px;
-          margin-top: 10px;
+          justify-content: center;
         }
-        .vol-track {
-          flex: 1;
-          padding: 10px 0;
-          cursor: pointer;
-          box-sizing: content-box;
-        }
-        .vol-track-inner {
-          height: 4px;
+        .vol-vert-bar {
+          width: 4px;
+          height: 100%;
           border-radius: 2px;
           background: ${trackBg};
+          position: relative;
           overflow: hidden;
           pointer-events: none;
           transition: background 0.6s ease;
         }
-        .vol-fill {
-          height: 100%;
-          border-radius: 2px;
+        .vol-vert-fill {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
           background: ${volumeFill};
           pointer-events: none;
-          transition: width 0.3s ease, background 0.6s ease;
+          transition: height 0.3s ease, background 0.6s ease;
         }
-        .vol-pct {
-          font-size: 13px;
-          color: ${textSecondary};
-          min-width: 32px;
-          text-align: right;
-          transition: color 0.6s ease;
-        }
-        .seek-btn {
-          background: none;
-          border: none;
-          cursor: pointer;
-          padding: 6px;
+        .vol-thumb {
+          position: absolute;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 12px;
+          height: 12px;
           border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: ${textSecondary};
-          transition: background 0.2s, color 0.6s ease;
-          flex-shrink: 0;
-          width: 32px;
-          height: 32px;
+          background: ${volumeFill};
+          cursor: grab;
+          z-index: 2;
+          transition: background 0.6s ease;
+          pointer-events: auto;
+        }
+        .vol-thumb:active { cursor: grabbing; }
+        .progress-wrap {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: 2;
+          padding: ${canSeek ? "10px 0 0" : "0"};
+          cursor: ${canSeek ? "pointer" : "default"};
           box-sizing: border-box;
         }
-        .seek-btn:hover { background: ${showArt ? "rgba(255,255,255,0.15)" : "var(--divider-color, #e0e0e0)"}; }
-        .progress-wrap {
-          margin-top: 10px;
-          padding: ${this._seekOpen ? "8px 0" : "4px 0"};
-          cursor: ${this._seekOpen ? "pointer" : "default"};
-          box-sizing: content-box;
-        }
         .progress-track {
+          position: relative;
           height: 3px;
           border-radius: 2px;
           background: ${trackBg};
           overflow: hidden;
           pointer-events: none;
-          transition: background 0.6s ease, height 0.2s ease;
-          ${this._seekOpen ? "height: 4px;" : ""}
+          transition: height 0.15s ease, background 0.6s ease;
+        }
+        ${canSeek ? ".progress-wrap:hover .progress-track { height: 5px; }" : ""}
+        .progress-hover-fill {
+          position: absolute;
+          top: 0;
+          left: 0;
+          height: 100%;
+          width: 0%;
+          background: ${showArt ? "rgba(255,255,255,0.35)" : "rgba(3,169,244,0.4)"};
+          pointer-events: none;
         }
         .progress-fill {
+          position: absolute;
+          top: 0;
+          left: 0;
           height: 100%;
-          border-radius: 2px;
           background: ${volumeFill};
           pointer-events: none;
           transition: background 0.6s ease;
+        }
+        .progress-thumb {
+          position: absolute;
+          bottom: -4.5px;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: ${volumeFill};
+          transform: translateX(-50%);
+          opacity: 0;
+          pointer-events: ${canSeek ? "auto" : "none"};
+          transition: opacity 0.15s ease, bottom 0.15s ease, background 0.6s ease;
+          z-index: 3;
+          cursor: grab;
+        }
+        ${canSeek ? ".progress-wrap:hover .progress-thumb { opacity: 1; bottom: -3.5px; }" : ""}
+        .progress-thumb:active { cursor: grabbing; }
+        .progress-tooltip {
+          position: absolute;
+          bottom: calc(100% + 6px);
+          transform: translateX(-50%);
+          background: rgba(0,0,0,0.75);
+          color: #fff;
+          font-size: 11px;
+          font-weight: 500;
+          padding: 3px 7px;
+          border-radius: 4px;
+          white-space: nowrap;
+          pointer-events: none;
+          display: none;
         }
       </style>
       <ha-card>
@@ -435,7 +527,7 @@ class SpeakerCard extends HTMLElement {
             <div class="art-overlay"></div>
           ` : ""}
           <div class="card-content">
-            <div class="header">
+            <div class="header" id="card-title">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3,9V15H7L12,20V4L7,9H3M16.5,12C16.5,10.23 15.48,8.71 14,7.97V16C15.48,15.29 16.5,13.77 16.5,12Z"/>
               </svg>
@@ -454,13 +546,7 @@ class SpeakerCard extends HTMLElement {
             </div>
             ${!s.isUnavailable ? `
               <div class="controls-row">
-                ${hasPosition && s.mediaDuration != null ? `
-                  <button class="seek-btn" id="seek-btn">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.2,16.2L11,13V7H12.5V12.2L17,14.9L16.2,16.2Z"/>
-                    </svg>
-                  </button>
-                ` : `<div class="left-pad"></div>`}
+                <div class="left-pad"></div>
                 <div class="controls">
                   <button class="ctrl-btn" id="prev-btn" ${!s.isActive ? "disabled" : ""}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -479,45 +565,53 @@ class SpeakerCard extends HTMLElement {
                   </button>
                 </div>
                 ${volumePct != null ? `
-                  <button class="vol-btn" id="vol-btn">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                      ${volIconPath}
-                    </svg>
-                  </button>
+                  <div class="vol-container">
+                    <div class="vol-popup">
+                      <span class="vol-pct-label">${s.isMuted ? "Muted" : volumePct + "%"}</span>
+                      <div class="vol-vert-track" id="vol-track">
+                        <div class="vol-vert-bar">
+                          <div class="vol-vert-fill" style="height:${s.isMuted ? 0 : volumePct}%;"></div>
+                        </div>
+                        <div class="vol-thumb" id="vol-thumb" style="top:${s.isMuted ? 100 : (100 - volumePct)}%;"></div>
+                      </div>
+                    </div>
+                    <button class="vol-btn" id="vol-btn">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        ${volIconPath}
+                      </svg>
+                    </button>
+                  </div>
                 ` : `<div class="left-pad"></div>`}
               </div>
-              ${progressPct != null && !this._volumeOpen && !this._seekOpen ? `
-                <div class="progress-wrap" id="seek-track">
-                  <div class="progress-track">
-                    <div class="progress-fill" style="width:${progressPct}%;"></div>
-                  </div>
-                </div>
-              ` : ""}
-              ${hasPosition && this._seekOpen ? `
-                <div class="vol-expand">
-                  <div class="vol-track" id="seek-track">
-                    <div class="vol-track-inner">
-                      <div class="vol-fill" style="width:${progressPct != null ? progressPct : 0}%;"></div>
-                    </div>
-                  </div>
-                </div>
-              ` : ""}
-              ${volumePct != null && this._volumeOpen ? `
-                <div class="vol-expand">
-                  <div class="vol-track" id="vol-track">
-                    <div class="vol-track-inner">
-                      <div class="vol-fill" style="width:${s.isMuted ? 0 : volumePct}%;"></div>
-                    </div>
-                  </div>
-                  <span class="vol-pct">${s.isMuted ? "Muted" : volumePct + "%"}</span>
-                </div>
-              ` : ""}
             ` : ""}
           </div>
+          ${progressPct != null ? `
+            <div class="progress-wrap" id="progress-bar">
+              <div class="progress-track">
+                <div class="progress-hover-fill" id="progress-hover-fill"></div>
+                <div class="progress-fill" style="width:${progressPct}%;"></div>
+              </div>
+              ${canSeek ? `
+                <div class="progress-thumb" style="left:${progressPct}%;"></div>
+                <div class="progress-tooltip" id="progress-tooltip"></div>
+              ` : ""}
+            </div>
+          ` : ""}
         </div>
       </ha-card>
     `;
 
+    const cardTitle = this.shadowRoot.getElementById("card-title");
+    if (cardTitle) {
+      cardTitle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.dispatchEvent(new CustomEvent("hass-more-info", {
+          detail: { entityId: this._config.entity },
+          bubbles: true,
+          composed: true,
+        }));
+      });
+    }
     if (!s.isUnavailable) {
       this.shadowRoot.getElementById("playpause-btn").addEventListener("click", () => {
         this._callService("media_play_pause");
@@ -530,27 +624,124 @@ class SpeakerCard extends HTMLElement {
           this._callService("media_next_track");
         });
       }
-      const seekBtn = this.shadowRoot.getElementById("seek-btn");
-      if (seekBtn) {
-        seekBtn.addEventListener("click", () => {
-          this._seekOpen = !this._seekOpen;
-          if (this._seekOpen) this._volumeOpen = false;
+      const progressBar = this.shadowRoot.getElementById("progress-bar");
+      if (progressBar && canSeek) {
+        const tooltip = this.shadowRoot.getElementById("progress-tooltip");
+        const thumb = progressBar.querySelector(".progress-thumb");
+        const hoverFill = this.shadowRoot.getElementById("progress-hover-fill");
+
+        progressBar.addEventListener("click", (e) => {
+          if (this._dragging) return;
+          const rect = progressBar.getBoundingClientRect();
+          const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+          const position = pct * s.mediaDuration;
+          this._optimisticPosition = position;
+          this._optimisticPositionAt = new Date().toISOString();
+          const capturedPos = position;
+          setTimeout(() => {
+            if (this._optimisticPosition === capturedPos) {
+              this._optimisticPosition = null;
+              this._optimisticPositionAt = null;
+              this._render();
+            }
+          }, 3000);
+          this._callService("media_seek", { seek_position: position });
           this._render();
         });
-      }
-      const seekTrack = this.shadowRoot.getElementById("seek-track");
-      if (seekTrack && s.mediaDuration) {
-        seekTrack.addEventListener("click", (e) => {
-          const rect = seekTrack.getBoundingClientRect();
+
+        progressBar.addEventListener("mousemove", (e) => {
+          const rect = progressBar.getBoundingClientRect();
           const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-          this._callService("media_seek", { seek_position: pct * s.mediaDuration });
+          if (hoverFill) hoverFill.style.width = `${pct * 100}%`;
+          if (tooltip) {
+            tooltip.style.display = "block";
+            tooltip.style.left = `${pct * 100}%`;
+            tooltip.textContent = fmt(pct * s.mediaDuration);
+          }
+        });
+
+        progressBar.addEventListener("mouseleave", () => {
+          if (hoverFill) hoverFill.style.width = "0%";
+          if (tooltip) tooltip.style.display = "none";
+        });
+
+        if (thumb) {
+          thumb.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this._dragging = true;
+            const fill = progressBar.querySelector(".progress-fill");
+
+            const onMove = (e) => {
+              const rect = progressBar.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+              thumb.style.left = `${pct * 100}%`;
+              if (fill) fill.style.width = `${pct * 100}%`;
+              if (tooltip) {
+                tooltip.style.display = "block";
+                tooltip.style.left = `${pct * 100}%`;
+                tooltip.textContent = fmt(pct * s.mediaDuration);
+              }
+            };
+
+            const onUp = (e) => {
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("mouseup", onUp);
+              const rect = progressBar.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+              const position = pct * s.mediaDuration;
+              this._optimisticPosition = position;
+              this._optimisticPositionAt = new Date().toISOString();
+              const capturedPos = position;
+              setTimeout(() => {
+                if (this._optimisticPosition === capturedPos) {
+                  this._optimisticPosition = null;
+                  this._optimisticPositionAt = null;
+                  this._render();
+                }
+              }, 3000);
+              this._dragging = false;
+              this._callService("media_seek", { seek_position: position });
+              this._render();
+            };
+
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
+          });
+        }
+      }
+      const volContainer = this.shadowRoot.querySelector(".vol-container");
+      if (volContainer) {
+        const popup = volContainer.querySelector(".vol-popup");
+        if (this._volHovering && popup) {
+          popup.style.opacity = "1";
+          popup.style.pointerEvents = "auto";
+        }
+        volContainer.addEventListener("mouseenter", () => {
+          this._volHovering = true;
+          const p = volContainer.querySelector(".vol-popup");
+          if (p) { p.style.opacity = "1"; p.style.pointerEvents = "auto"; }
+        });
+        volContainer.addEventListener("mouseleave", () => {
+          if (this._volDragging) return;
+          this._volHovering = false;
+          const p = volContainer.querySelector(".vol-popup");
+          if (p) { p.style.opacity = "0"; p.style.pointerEvents = "none"; }
         });
       }
       const volBtn = this.shadowRoot.getElementById("vol-btn");
       if (volBtn) {
         volBtn.addEventListener("click", () => {
-          this._volumeOpen = !this._volumeOpen;
-          if (this._volumeOpen) this._seekOpen = false;
+          const newMuted = !s.isMuted;
+          this._optimisticMuted = newMuted;
+          const capturedMuted = newMuted;
+          setTimeout(() => {
+            if (this._optimisticMuted === capturedMuted) {
+              this._optimisticMuted = null;
+              this._render();
+            }
+          }, 3000);
+          this._callService("volume_mute", { is_volume_muted: newMuted });
           this._render();
         });
       }
@@ -558,9 +749,74 @@ class SpeakerCard extends HTMLElement {
       if (volTrack) {
         volTrack.addEventListener("click", (e) => {
           const rect = volTrack.getBoundingClientRect();
-          const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+          const pct = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+          this._optimisticVolume = pct;
+          const capturedVol = pct;
+          setTimeout(() => {
+            if (this._optimisticVolume === capturedVol) {
+              this._optimisticVolume = null;
+              this._render();
+            }
+          }, 3000);
           this._callService("volume_set", { volume_level: pct });
+          // Update DOM directly — avoids re-render which would close the popup
+          const fill = volTrack.querySelector(".vol-vert-fill");
+          if (fill) fill.style.height = `${Math.round(pct * 100)}%`;
+          const thumb = volTrack.querySelector(".vol-thumb");
+          if (thumb) thumb.style.top = `${Math.round((1 - pct) * 100)}%`;
+          const label = volContainer?.querySelector(".vol-pct-label");
+          if (label) label.textContent = `${Math.round(pct * 100)}%`;
         });
+        const volThumb = this.shadowRoot.getElementById("vol-thumb");
+        if (volThumb) {
+          volThumb.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this._volDragging = true;
+            const fill = volTrack.querySelector(".vol-vert-fill");
+            const label = volContainer?.querySelector(".vol-pct-label");
+
+            const onMove = (e) => {
+              const rect = volTrack.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+              volThumb.style.top = `${(1 - pct) * 100}%`;
+              if (fill) fill.style.height = `${Math.round(pct * 100)}%`;
+              if (label) label.textContent = `${Math.round(pct * 100)}%`;
+            };
+
+            const onUp = (e) => {
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("mouseup", onUp);
+              const rect = volTrack.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+              this._optimisticVolume = pct;
+              const capturedVol = pct;
+              setTimeout(() => {
+                if (this._optimisticVolume === capturedVol) {
+                  this._optimisticVolume = null;
+                  this._render();
+                }
+              }, 3000);
+              this._volDragging = false;
+              this._callService("volume_set", { volume_level: pct });
+              // Restore popup visibility based on whether mouse is still over container
+              if (volContainer) {
+                const rect = volContainer.getBoundingClientRect();
+                const over = e.clientX >= rect.left && e.clientX <= rect.right &&
+                             e.clientY >= rect.top && e.clientY <= rect.bottom;
+                if (!over) {
+                  this._volHovering = false;
+                  const popup = volContainer.querySelector(".vol-popup");
+                  if (popup) { popup.style.opacity = "0"; popup.style.pointerEvents = "none"; }
+                }
+              }
+            };
+
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
+          });
+          volThumb.addEventListener("click", (e) => e.stopPropagation());
+        }
       }
     }
     this._attachInteractionListeners();

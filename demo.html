@@ -81,7 +81,7 @@
     if (!customElements.get("ha-card")) {
       customElements.define("ha-card", class extends HTMLElement {
         connectedCallback() {
-          this.style.cssText = "display:block;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);overflow:hidden;";
+          this.style.cssText = "display:block;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);overflow:visible;";
         }
       });
     }
